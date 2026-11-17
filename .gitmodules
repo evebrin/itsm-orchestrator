@@ -1,0 +1,10 @@
+[submodule "vendor/itscm-451z-agent"]
+	path = vendor/itscm-451z-agent
+	url = https://github.com/cocheuno/itscm-451z-agent.git
+[submodule "vendor/pm-agent"]
+	path = vendor/pm-agent
+	url = https://github.com/evebrin/pm-agent.git
+[submodule "vendor/ChangeManagementAgent"]
+	path = vendor/ChangeManagementAgent
+	url = https://github.com/cocheuno/ChangeManagementAgent.git
+	branch = main

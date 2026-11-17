@@ -1,6 +1,6 @@
 # Integration contract: `cocheuno/ChangeManagementAgent` (Change Enablement, Release, Deployment)
 
-Pinned: `grok-build` @ `6204d6c1ce1fe83dfb698d2becd9532d56e08aaa` (submodule
+Pinned: `main` @ `9450f95` (the accepted Phase 6 build; `grok-build` is the same commit) (submodule
 `vendor/ChangeManagementAgent`). Installed with `pip install -e vendor/ChangeManagementAgent`, so
 `cm_agents.settings.repo_root()` resolves to the submodule and finds `config/policy.yaml`,
 `data/synthetic/fixtures.json` and `var/` there.
@@ -46,5 +46,5 @@ Everything the change graph writes today (`change_request`, `task_ci`, `task_cmd
 
 ## Check
 
-`pytest vendor/ChangeManagementAgent` (unit tests) green; a dry probe thread `SYN-PROBE-…` started and
+`pytest -m "not live"` in `vendor/ChangeManagementAgent` green (174 tests at the pin in the shared environment); a dry probe thread `SYN-PROBE-…` started and
 resumed by the adapter reaches `go_no_go` after two approver-agent steps (phase 1, probe P9).

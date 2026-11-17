@@ -1,0 +1,16 @@
+[project]
+name = "itsm-orchestrator"
+version = "0.0.1"
+description = "Integration layer for the Incident, Problem and Change agent repositories"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+addopts = "-p no:cacheprovider"
+
+[tool.ruff]
+line-length = 135
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

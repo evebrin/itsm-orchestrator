@@ -1,0 +1,27 @@
+# One Python 3.12 environment for the orchestrator and the three pinned repositories (END_TO_END_ITSM.md §2.4).
+#   python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e vendor/ChangeManagementAgent
+# Change repository: its uv.lock versions at the pin (9450f95).
+langgraph==1.2.18
+langgraph-checkpoint==4.3.1
+langgraph-checkpoint-sqlite==3.1.2
+langchain-xai==1.3.0
+langchain-core==1.7.2
+langchain-openai==1.7.3
+httpx==0.28.1
+pydantic==2.14.1
+pydantic-core==2.50.1
+faker==40.43.0
+pyyaml==6.0.3
+# Incident repository (its requirements.txt; sentence-transformers left out, not used at runtime).
+requests>=2.32
+python-dotenv>=1.0
+pandas>=2.2
+scikit-learn==1.5.2
+joblib>=1.4
+matplotlib>=3.9
+statsmodels>=0.14
+mcp>=2.2
+# Tests and lint.
+pytest==9.1.1
+respx==0.23.1
+ruff>=0.6
