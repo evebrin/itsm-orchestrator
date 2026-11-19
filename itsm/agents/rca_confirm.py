@@ -9,13 +9,17 @@ All four must hold, otherwise the case ends held_rca_unconfirmed:
 The categories are the fix catalog's, one per planted mechanism. Each is a list of keyword groups; every group
 must match (any keyword). They are generic (no CI names or versions) and fixed here, before the replay is run.
 They differ from pm-agent's evaluation-only SCORE_KEYWORDS, which name the planted CIs.
+
+Revision 2 (after the replay on run 20261119-014420, see docs/architecture/R1_REPLAY.md): a text that admits the
+evidence does not establish the cause names no category, whichever engine wrote it; and firmware_defect no longer
+accepts "version" as its second group, because every CI label carries "firmware_version".
 """
 from __future__ import annotations
 
 CATEGORIES: dict[str, list[list[str]]] = {
     "log_growth": [["log"], ["rotation", "rotate", "retention", "filled", "fills", "full", "growing", "grows"]],
     "cert_job_no_restart": [["cert", "certificate"], ["restart", "reload", "not reloaded", "not restarted"]],
-    "firmware_defect": [["firmware"], ["bug", "defect", "version", "fixed in", "known issue"]],
+    "firmware_defect": [["firmware"], ["bug", "defect", "fixed in", "known issue", "advisory"]],
     "monthend_batch_lock": [["month-end", "monthend", "month end"], ["lock"]],
 }
 
@@ -23,9 +27,17 @@ CATEGORIES: dict[str, list[list[str]]] = {
 EXTRA_MARKERS = ("ignore previous", "you are now")
 
 
+# An admission that the evidence does not establish the cause (pm-agent's rule engine starts such a result with
+# "Not determined from the evidence"; an LLM says it in its own words).
+UNDETERMINED = ("not determined", "cannot be determined", "could not be determined", "undetermined",
+                "does not supply", "does not identify", "insufficient evidence")
+
+
 def category(text: str) -> str | None:
-    """The one category whose every group matches, or None (none, or more than one: ambiguous)."""
+    """The one category whose every group matches, or None (none, ambiguous, or the cause is not determined)."""
     t = (text or "").lower()
+    if any(u in t for u in UNDETERMINED):
+        return None
     hits = [c for c, groups in CATEGORIES.items() if all(any(k in t for k in g) for g in groups)]
     return hits[0] if len(hits) == 1 else None
 

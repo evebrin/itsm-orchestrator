@@ -483,6 +483,13 @@ came from noise; the rule engine reported no determined cause for that kind of p
 limitations"), so R1 would have held both instead of raising changes. **To verify** by replaying the
 reference run's evidence (check E2E-2).
 
+**Replay result (2026-11-18, [R1_REPLAY.md](R1_REPLAY.md)).** The reference run's PDI was reclaimed, so the
+replay ran on a fresh run (`20261119-014420`). Revision 1 of `rca_confirm` confirmed 4 of 4 planted problems
+but also one unplanted decoy: it did not enforce criterion (1), and its firmware category matched the CI
+label `firmware_version`. Revision 2 enforces (1) for both engines (an admission that the evidence does not
+establish the cause names no category) and drops "version" from that category. Re-scored on the same saved
+answers: 4 of 4 confirmed, 2 of 2 held. That is not an independent test; the next fresh run is.
+
 ### 5.9 Rule G1: go/no-go
 
 `go` iff the simulated now is inside the approved planned start and end, no new blocking conflict
