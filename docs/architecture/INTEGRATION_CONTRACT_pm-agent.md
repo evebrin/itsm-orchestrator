@@ -1,6 +1,6 @@
 # Integration contract: `evebrin/pm-agent` (Problem Management)
 
-Pinned: `main` @ `5a8c995c3c9a92221716859f5ca17fe1e5c2ec04` (submodule `vendor/pm-agent`).
+Pinned: `main` @ `a717139398bb3d5971eecef07b5e6b3e905ed304` (submodule `vendor/pm-agent`).
 Import path: `vendor/pm-agent` on `sys.path` (flat modules). Configuration through environment variables
 set by the adapter before import: `SN_INSTANCE`, `SN_USER`, `SN_PASSWORD` (problem identity),
 `SN_ADMIN_USER`, `SN_ADMIN_PASSWORD` (setup only), `LLM_PROVIDER=xai`, `LLM_MODEL`, `LLM_API_KEY`.

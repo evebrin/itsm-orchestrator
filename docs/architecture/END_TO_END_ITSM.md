@@ -7,7 +7,7 @@ Pinned inputs read for this design:
 | Repository | Branch | Commit read | Owner |
 |---|---|---|---|
 | `cocheuno/itscm-451z-agent` | `main` | `c5cc1856ff1d` | cocheuno |
-| `evebrin/pm-agent` | `main` | `5a8c995c3c9a` | evebrin |
+| `evebrin/pm-agent` | `main` | `a717139398bb` | evebrin |
 | `cocheuno/ChangeManagementAgent` | `main` (= `grok-build`) | `9450f95` (accepted build, Phase 6) | cocheuno |
 
 Every statement about a repository cites the file it came from. Every ServiceNow object is marked
@@ -133,7 +133,7 @@ Every statement about a repository cites the file it came from. Every ServiceNow
 ```
 itsm-orchestrator/
   vendor/itscm-451z-agent/          # git submodule @ c5cc1856ff1d
-  vendor/pm-agent/                  # git submodule @ 5a8c995c3c9a
+  vendor/pm-agent/                  # git submodule @ a717139398bb
   vendor/ChangeManagementAgent/     # git submodule @ 9450f95 (branch main)
   itsm/                             # the orchestrator package
     platform/   settings, identities, sn client, clock, audit, untrusted text, policy
