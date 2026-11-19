@@ -1,0 +1,20 @@
+# The orchestrator's policy (END_TO_END_ITSM.md §5.1, §7.6). The change section is the change repository's own
+# config/policy.yaml, read from vendor/ChangeManagementAgent (itsm/platform/policy.py).
+
+incident:
+  # Classify (design §3 row 2): use the model's category only at or above this confidence, else keep the
+  # caller's. A design choice, not from the incident repository; to tune with before/after numbers.
+  min_confidence: 0.6
+
+problem:
+  # Detection (design §4): pm-agent's rule (5+ incidents in 14 days, similarity >= 0.10) and at least this
+  # pm-agent confidence label.
+  min_confidence: Medium
+
+autonomy:
+  enabled: true
+  auto_approve_normal_tiers: [low, moderate]   # D6; high -> held_change (reason: above delegated authority)
+  caps: {per_service_per_day: 2, per_run: 10}
+  max_impacted_services: 2                      # blast radius, from cm risk state impacted_services
+  circuit_breaker: {failed_changes: 1, window_days: 7, scope: service}
+  kill_switch_file: var/KILL                    # present = no approvals, incidents continue

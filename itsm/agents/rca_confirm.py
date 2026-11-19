@@ -16,6 +16,9 @@ accepts "version" as its second group, because every CI label carries "firmware_
 """
 from __future__ import annotations
 
+# The change repository's markers come in as base_markers; these are the orchestrator's own.
+from itsm.platform.untrusted import EXTRA_MARKERS
+
 CATEGORIES: dict[str, list[list[str]]] = {
     "log_growth": [["log"], ["rotation", "rotate", "retention", "filled", "fills", "full", "growing", "grows"]],
     "cert_job_no_restart": [["cert", "certificate"], ["restart", "reload", "not reloaded", "not restarted"]],
@@ -23,8 +26,6 @@ CATEGORIES: dict[str, list[list[str]]] = {
     "monthend_batch_lock": [["month-end", "monthend", "month end"], ["lock"]],
 }
 
-# The change repository's markers (cm_agents/enablement/guard.py) plus two for analysis text.
-EXTRA_MARKERS = ("ignore previous", "you are now")
 
 
 # An admission that the evidence does not establish the cause (pm-agent's rule engine starts such a result with
