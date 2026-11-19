@@ -357,7 +357,9 @@ like any other (it matches the run tag), so Incident Management restores it.
 | Known error article | title prefix `[SYN-E2E-<run_id>-P<nn>]` | `kb_knowledge` tagging follows pm-agent's title-prefix rule |
 | Incident joined to a case | keeps the run tag; work note `[case <case_id>]` | not rewritten, so the seed tag stays reliable for teardown |
 
-A run is selected everywhere by `correlation_idSTARTSWITHSYN-E2E-<run_id>`. It does not start with the
+A run is selected everywhere by `correlation_id=SYN-E2E-<run_id>` (incidents) or
+`correlation_idSTARTSWITHSYN-E2E-<run_id>-` (case records), never by the bare prefix, which would also match a
+look-alike such as `SYN-E2E-<run_id>0` (`itsm.data.load.run_queries`; caught by a unit test). It does not start with the
 incident repository's `[SYN]` description marker, and does not start with any change-repository seed
 prefix (`counts_in_metrics` is false). Check: P15 counts each prefix and expects the run's rows in
 exactly one query.

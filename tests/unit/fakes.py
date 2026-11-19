@@ -8,6 +8,8 @@ class FakeResp:
         self.status_code = status
         self.headers = {"Content-Type": "text/html" if html else "application/json"}
         body = "<html>hibernating</html>" if html else _json.dumps({"result": result} if result is not None else {})
+        if status == 204:
+            body = ""
         self.text, self.content = body, body.encode()
 
     def json(self):

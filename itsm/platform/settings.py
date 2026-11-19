@@ -55,3 +55,19 @@ def redact(text: str, secrets: list[str]) -> str:
         if s:
             text = text.replace(s, "***")
     return text
+
+
+def write_env(updates: dict[str, str], path: Path | None = None) -> None:
+    """Set keys in .env, keeping every other line; owner-only permissions. Nothing is printed."""
+    path = path or ENV_FILE
+    lines = path.read_text().splitlines() if path.is_file() else []
+    left = dict(updates)
+    for i, line in enumerate(lines):
+        key = line.split("=", 1)[0].strip()
+        if key in left and not line.lstrip().startswith("#"):
+            lines[i] = f"{key}={left.pop(key)}"
+    lines += [f"{k}={v}" for k, v in left.items()]
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n")
+    tmp.chmod(0o600)
+    tmp.replace(path)

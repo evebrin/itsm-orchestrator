@@ -5,6 +5,9 @@
     python -m itsm probe --all                    # run on the instance in .env (phase 1b)
     python -m itsm probe P3 P12                   # selected probes
     python -m itsm replay-r1 --run-id 20261029-192408 [--pm-home ~/pm-agent]
+    python -m itsm seed --run-id 20261119-1530 --dry-run   # what would be loaded; sends no request
+    python -m itsm seed --run-id 20261119-1530 [--check]   # load (admin), or check a loaded run
+    python -m itsm teardown --run-id 20261119-1530         # delete the run's records and identities
 """
 from __future__ import annotations
 
@@ -70,6 +73,58 @@ def cmd_replay(a: argparse.Namespace) -> int:
     return 0 if out["passed"] else 1
 
 
+def cmd_seed(a: argparse.Namespace) -> int:
+    from collections import Counter
+
+    from itsm.data import load
+
+    load.tag(a.run_id)
+    if a.dry_run:
+        from itsm.data.generate import plan
+
+        p = plan()
+        hist = [r for r in p["incidents"] if r["phase"] == "history"]
+        print(f"seed {load.tag(a.run_id)} (dry run: no request was sent)")
+        print("  identities: " + ", ".join(load.USER_PREFIX + d for d in load.DUTIES) + " (web service access only)")
+        print(f"  history incidents: {len(hist)} " + str(dict(Counter(r['cluster'] for r in hist))))
+        print(f"  kept for the run, not loaded: {len(p['incidents']) - len(hist)} stream incidents, "
+              f"{len(p['catalog'])} fix catalog entries, the ground truth")
+        return 0
+    admin = _admin()
+    if a.check:
+        rows = load.check(admin, a.run_id)
+        for name, ok, detail in rows:
+            print(f"  {'PASS' if ok else 'FAIL'}  {name}: {detail}")
+        ok = all(r[1] for r in rows)
+        print("RESULT: " + ("SEED OK" if ok else "SEED CHECK FAILED"))
+        return 0 if ok else 1
+    m = load.seed(admin, a.run_id)
+    print(f"seeded {m['tag']}: {len(m['incidents'])} incidents, identities {', '.join(i['user'] for i in m['identities'].values())}"
+          " (passwords written to .env, not shown)")
+    return 0
+
+
+def cmd_teardown(a: argparse.Namespace) -> int:
+    from itsm.data import load
+
+    out = load.teardown(_admin(), a.run_id)
+    print("deleted: " + (", ".join(f"{n} {t}" for t, n in out["deleted"].items()) or "nothing"))
+    print(f"left: {out['left']}; records this project did not create unchanged: {out['untagged_unchanged']}")
+    ok = not any(out["left"].values()) and (out["untagged_unchanged"] is None or all(out["untagged_unchanged"].values()))
+    print("RESULT: " + ("TEARDOWN OK" if ok else "TEARDOWN INCOMPLETE"))
+    return 0 if ok else 1
+
+
+def _admin():
+    from itsm.platform import settings
+    from itsm.platform.audit import Audit
+    from itsm.platform.sn import SNClient
+
+    s = settings.load(required=("SN_INSTANCE_URL", "SN_ADMIN_USER", "SN_ADMIN_PASSWORD"))
+    return SNClient(s.instance, s.get("SN_ADMIN_USER"), s.get("SN_ADMIN_PASSWORD"), identity="admin",
+                    audit=Audit(run_id="seed"), secrets=s.secrets())
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m itsm", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -81,8 +136,14 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("replay-r1", help="replay rule R1 on pm-agent's reference run (read-only)")
     r.add_argument("--run-id", required=True)
     r.add_argument("--pm-home", default="~/pm-agent")
+    s = sub.add_parser("seed", help="load the combined world's incidents and identities (admin)")
+    s.add_argument("--run-id", required=True)
+    s.add_argument("--dry-run", action="store_true", help="print what would be loaded; send nothing")
+    s.add_argument("--check", action="store_true", help="check a loaded run against its manifest")
+    t = sub.add_parser("teardown", help="delete a run's records and identities (admin)")
+    t.add_argument("--run-id", required=True)
     a = ap.parse_args(argv)
-    return cmd_probe(a) if a.cmd == "probe" else cmd_replay(a)
+    return {"probe": cmd_probe, "replay-r1": cmd_replay, "seed": cmd_seed, "teardown": cmd_teardown}[a.cmd](a)
 
 
 if __name__ == "__main__":
