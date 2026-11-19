@@ -233,16 +233,16 @@ def p3(run: ProbeRun) -> Result:
 
 
 def p4(run: ProbeRun) -> Result:
-    # Field names of the state-model tables were not recorded by pm-agent; this read is kept wide.
-    models = run.admin.list("sttrm_state_model", "table=problem", ["sys_id", "name", "table"],
-                            purpose="metadata: problem state models")
+    # Problem models are prb_model rows (extends sttrm_model); each has sttrm_state rows, and transitions link a
+    # from_state to a to_state (dictionary read on dev181865, 2026-11-19).
+    models = run.admin.list("prb_model", "", ["sys_id", "name"], purpose="metadata: problem state models")
     if not models:
-        return Result("P4", "INCONCLUSIVE", "no sttrm_state_model row for table problem was readable; check the "
-                      "state model in the UI or with pm-agent's state_api.py --test once installed", {})
-    n = run.admin.count("sttrm_state_transition", "state_modelIN" + ",".join(m["sys_id"] for m in models),
-                        purpose="metadata: problem transitions")
-    return Result("P4", "PASS" if n else "INCONCLUSIVE", f"{len(models)} problem state model(s), {n} transitions",
-                  {"models": [m.get("name") for m in models], "transitions": n})
+        return Result("P4", "INCONCLUSIVE", "no prb_model row was readable; check the problem state model in the UI", {})
+    ids = ",".join(m["sys_id"] for m in models)
+    states = run.admin.count("sttrm_state", f"sttrm_modelIN{ids}", purpose="metadata: problem model states")
+    n = run.admin.count("sttrm_state_transition", f"from_state.sttrm_modelIN{ids}", purpose="metadata: problem transitions")
+    return Result("P4", "PASS" if n else "INCONCLUSIVE", f"{len(models)} problem state model(s), {states} states, {n} transitions",
+                  {"models": [m.get("name") for m in models], "states": states, "transitions": n})
 
 
 def p5(run: ProbeRun) -> Result:
@@ -466,7 +466,7 @@ PROBES = [
     Probe("P3", "problem.state read-only to the Table API?", R, (),
           ("read sys_dictionary_override for problem.state", "read sys_dictionary problem.state read_only"), p3),
     Probe("P4", "problem state model and transitions", R, (),
-          ("read sttrm_state_model for table problem", "count sttrm_state_transition for those models"), p4),
+          ("read prb_model (the problem state models)", "count their sttrm_state rows and sttrm_state_transition rows"), p4),
     Probe("P5", "Known Error KB and article template", R, (),
           ("read kb_knowledge_base 'Known Error'", "check sys_db_object kb_template_known_error_article"), p5),
     Probe("P6", "incident identity: assigns incidents, cannot create changes", T, ("incident",),
