@@ -655,7 +655,7 @@ PDI: dev406825. "Verified" names the PDI and source. Anything verified only on a
 | Approvals: assignment group then CAB Approval, every tier | verified dev181865; **re-verify** dev406825 | DISCOVERY item 5 | — |
 | Approver identity can approve its own row | **to verify** | P9 | §5.2 fallback |
 | `conflict`, `task_ci`, `task_cmdb_ci_service`, `sn_chg_rest` CI association | verified dev181865; **re-verify** dev406825 | DISCOVERY items 7, 9; ASSUMPTIONS | — |
-| `cmdb_ci` Larkspur CIs, `environment` | verified dev181865; **re-verify** dev406825 | ASSUMPTIONS (Phase 5 population) | — |
+| `cmdb_ci` Larkspur CIs, `environment` | verified dev181865; **re-verify** dev406825 | ASSUMPTIONS (Phase 5 population); P0 counts the seed (changes, incidents, CIs, schedules) and stops every other probe if it is missing | — |
 | CI attributes used as RCA evidence (firmware, OS) | **to verify** | P11: read Larkspur CI classes' fields | plant evidence in incident work notes only |
 | Incident close code for "resolved by problem / workaround" | **to verify** | P12: `sys_choice` for `incident.close_code` | an existing code plus close notes |
 | Roles: `itil`, `problem_coordinator`, `approver_user` | **to verify** | P6–P9 | smallest role that unblocks, recorded |
@@ -717,7 +717,7 @@ Each phase ends with its gate; every phase keeps all three suites green: `pytest
 
 | Phase | Work | Gate (command → expected) |
 |---|---|---|
-| 1 Discovery and contracts | Submodules; probes P1–P15 on dev406825 (read-only or `SYN-PROBE`, cleaned up); owners agree contracts and the case id | `itsm probe --all` → every probe `PASS` or a recorded fallback; residue query → 0 `SYN-PROBE` rows |
+| 1 Discovery and contracts | Submodules; probes P0–P15 on dev406825 (P0 first: Larkspur seed present; read-only or `SYN-PROBE`, cleaned up); owners agree contracts and the case id | `itsm probe --all` → every probe `PASS` or a recorded fallback; residue query → 0 `SYN-PROBE` rows |
 | 2 Platform and data | Settings, client, clock, audit, untrusted, policy; `itsm seed`/`teardown`; owner PRs opened | `pytest tests/unit` green; `itsm seed --check` → counts match; teardown → 0 rows |
 | 3 Thin slice, dry run | One planted case end to end with `--dry-run` (no writes) | `itsm run --dry-run --case planted-a` → planned writes listed for every stage; 0 writes in the audit |
 | 4 Main path live | Approver agent, fail closed, closure | E2E-1, E2E-2, E2E-3 pass |
@@ -737,7 +737,7 @@ the shared PDI.
 | The approver identity cannot approve its own row without an ACL change (P9) | Probe in phase 1 before any build; fallback is the smallest role; ACLs are never edited |
 | dev406825 belongs to another person and hibernates | Owner agreement (open question 1); every client detects hibernation |
 | `problem.state` and KB behaviour differ on dev406825 | P2–P5 in phase 1 |
-| The change repository's Larkspur world is not on dev406825 | Open question 1; if it must be loaded, the change repository's own seed (its RUNBOOK) runs first and phase 1 waits for it |
+| The change repository's Larkspur world is not on dev406825 | P0 counts it first, read-only; open question 1; if it must be loaded, the change repository's own seed (its RUNBOOK) runs first and phase 1 waits for it |
 | dev406825 refuses basic auth for interactive users, `admin` included (incident repository ADR 0002) | Admin allowance (`snc_basic_auth_api_access`) or a web-service-only account for the probes; agreed with the owner |
 | R1 holds planted problems too (false holds) | Replay the reference run (phase 1); tune keyword groups only with before/after numbers |
 | Owner PRs are not accepted in time | Every PR has a temporary adapter workaround named in `OWNER_PRS.md`; the design never patches vendor code |

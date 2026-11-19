@@ -3,7 +3,7 @@ import requests
 from itsm import __main__ as cli
 from itsm.platform.audit import Audit
 from itsm.platform.settings import Settings
-from itsm.probes import BY_ID, ORDER, PROBES, ProbeRun, p3, p10, run_probes
+from itsm.probes import BY_ID, ORDER, PROBES, ProbeRun, p0, p3, p10, run_probes
 from tests.unit.fakes import FakeResp, FakeSession
 
 PDI = "https://dev000001.service-now.com"
@@ -15,9 +15,10 @@ def run_with(tmp_path, routes):
     return ProbeRun(s, Audit(tmp_path / "a.jsonl"), session_factory=lambda: session, sleep=lambda s: None), session
 
 
-def test_catalog_has_p1_to_p15_once_with_plans():
-    assert [p.id for p in PROBES] == [f"P{i}" for i in range(1, 16)]
-    assert sorted(ORDER, key=lambda i: int(i[1:])) == [p.id for p in PROBES] and ORDER[-1] == "P10"
+def test_catalog_has_p0_to_p15_once_with_plans():
+    assert [p.id for p in PROBES] == [f"P{i}" for i in range(0, 16)]
+    assert sorted(ORDER, key=lambda i: int(i[1:])) == [p.id for p in PROBES]
+    assert ORDER[0] == "P0" and ORDER[-1] == "P10"
     assert all(p.plan and p.kind in ("read", "temp") and callable(p.fn) for p in PROBES)
 
 
@@ -62,3 +63,23 @@ def test_a_stopped_probe_is_inconclusive_and_still_cleans_up(tmp_path):
     results, errors, _ = run_probes(["P1"], run)
     assert results[0].status == "INCONCLUSIVE" and "sys_user_role" in results[0].detail
     assert len([c for c in session.calls if c[0] == "DELETE"]) == len([c for c in session.calls if c[0] == "POST"])
+
+
+def stats(n):
+    return {("GET", f"/api/now/stats/{t}"): FakeResp(200, {"stats": {"count": str(n)}})
+            for t in ("change_request", "incident", "cmdb_ci", "cmn_schedule")}
+
+
+def test_p0_passes_when_the_larkspur_seed_is_present(tmp_path):
+    run, session = run_with(tmp_path, stats(1500))
+    r = p0(run)
+    assert r.status == "PASS" and r.facts["seeded changes"] == 1500
+    assert all(c[0] == "GET" for c in session.calls)  # counts only
+
+
+def test_without_the_seed_p0_fails_and_every_other_probe_is_skipped(tmp_path):
+    run, session = run_with(tmp_path, stats(0))
+    results, errors, _ = run_probes(["P0", "P2", "P1"], run)
+    assert [r.status for r in results] == ["FAIL", "INCONCLUSIVE", "INCONCLUSIVE"]
+    assert "seed 42" in results[0].detail and all("skipped" in r.detail for r in results[1:])
+    assert not errors and all(c[0] == "GET" for c in session.calls)  # nothing created, nothing to clean up

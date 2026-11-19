@@ -11,7 +11,7 @@ dev181865 (its `docs/setup/PDI_AND_WORKSTATION_SETUP.md`), the incident reposito
 ## Decision
 
 Use dev406825 (corrected 2026-11-19: dev181865 is not the instance to use). Re-verify every finding made on
-another PDI there, the change repository's included (probes P1-P15).
+another PDI there, the change repository's included (probes P0-P15; P0 first checks the Larkspur seed is there).
 
 ## Reasons
 
@@ -31,4 +31,4 @@ or has to be loaded there (open question 1).
 
 ## Check
 
-`itsm probe --all` reports PASS or a recorded fallback for P1-P15 on dev406825.
+`itsm probe --all` reports PASS or a recorded fallback for P0-P15 on dev406825.

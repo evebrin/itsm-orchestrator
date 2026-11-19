@@ -1,4 +1,7 @@
-"""Phase 1 probes P1-P15 on the shared PDI (END_TO_END_ITSM.md §11, §13).
+"""Phase 1 probes P0-P15 on the shared PDI (END_TO_END_ITSM.md §11, §13).
+
+P0 runs first and only counts the change repository's Larkspur seed. If the seed is not there, every other
+probe is skipped: the instance is not ready (or not the right one), and loading the seed is the owner's decision.
 
 Two kinds:
 - read: reads metadata or counts. Writes nothing.
@@ -172,6 +175,28 @@ def refused_or_unchanged(status: int, after: str, before: str) -> bool:
 
 
 # ---- the probes ------------------------------------------------------------------------------------
+# The change repository's seed markers (vendor/ChangeManagementAgent cm_agents/data/queries.py).
+LARKSPUR = {
+    "seeded changes": ("change_request", "correlation_idSTARTSWITHSYN-CHG-^ORcorrelation_idSTARTSWITHSYN-OPEN-"
+                                         "^ORcorrelation_idSTARTSWITHSYN-REL-"),
+    "seeded incidents": ("incident", "correlation_idSTARTSWITHSYN-INC-"),
+    "Larkspur CIs": ("cmdb_ci", "nameSTARTSWITHsyn-"),
+    "maintenance schedules": ("cmn_schedule", "nameSTARTSWITHSYN Tier-"),
+}
+
+
+def p0(run: ProbeRun) -> Result:
+    counts = {k: run.admin.count(t, q, purpose=f"metadata: count {k}") for k, (t, q) in LARKSPUR.items()}
+    present = [k for k, n in counts.items() if n]
+    if len(present) == len(counts):
+        return Result("P0", "PASS", "Larkspur seed present: " + ", ".join(f"{n} {k}" for k, n in counts.items()), counts)
+    if not present:
+        return Result("P0", "FAIL", "no Larkspur seed on this instance: load it (change repository RUNBOOK, "
+                      "`cm-agents seed --seed 42 --anchor 2026-10-27`) only with the owner's agreement", counts)
+    return Result("P0", "INCONCLUSIVE", "partial Larkspur seed (missing: " + ", ".join(k for k in counts if k not in present)
+                  + "): ask the owner before going on", counts)
+
+
 def p1(run: ProbeRun) -> Result:
     d = dictionary(run, "incident", "parent")
     prb, inc = run.problem("P1 problem"), run.incident("P1 incident")
@@ -429,6 +454,9 @@ def p15(run: ProbeRun) -> Result:
 
 R, T = "read", "temp"
 PROBES = [
+    Probe("P0", "the change repository's Larkspur seed is on this instance", R, (),
+          ("count SYN-CHG-/SYN-OPEN-/SYN-REL- changes, SYN-INC- incidents, syn- CIs and 'SYN Tier-' schedules",
+           "if none: skip every other probe"), p0),
     Probe("P1", "incident.parent links an incident to a problem", T, ("problem",),
           ("read sys_dictionary for incident.parent", "create a probe problem and incident (admin)",
            "as the problem identity set incident.parent", "read back as admin"), p1),
@@ -480,6 +508,9 @@ def run_probes(ids: list[str], run: ProbeRun) -> tuple[list[Result], list[str], 
     results = []
     try:
         for pid in [i for i in ORDER if i in ids]:
+            if results and results[0].id == "P0" and results[0].status != "PASS":
+                results.append(Result(pid, "INCONCLUSIVE", "skipped: P0 found no complete Larkspur seed"))
+                continue
             try:
                 results.append(BY_ID[pid].fn(run))
             except SNError as e:

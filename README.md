@@ -28,7 +28,7 @@ The three repositories are pinned git submodules under `vendor/` (ADR 0003) and 
 ## Phase 1 commands
 
 ```
-.venv/bin/python -m itsm probe --list                 # P1-P15 and their kind
+.venv/bin/python -m itsm probe --list                 # P0-P15 and their kind
 .venv/bin/python -m itsm probe --all --dry-run        # every probe's plan; sends no request
 .venv/bin/python -m itsm probe --all                  # run on the PDI in .env (needs the admin login)
 .venv/bin/python -m itsm replay-r1 --run-id 20261029-192408   # rule R1 on pm-agent's reference run (read-only)
