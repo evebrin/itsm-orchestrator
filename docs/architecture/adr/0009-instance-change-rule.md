@@ -8,7 +8,7 @@ pm-agent installs a Scripted REST API; the change repository forbids instance ch
 
 ## Decision
 
-No instance changes except pm-agent's tagged Problem State Scripted REST API, and only if probe P3 shows problem.state is read-only to the Table API on dev181865. Users and group memberships are data, not instance changes.
+No instance changes except pm-agent's tagged Problem State Scripted REST API, and only if probe P3 shows problem.state is read-only to the Table API on dev406825. Users and group memberships are data, not instance changes.
 
 ## Reasons
 

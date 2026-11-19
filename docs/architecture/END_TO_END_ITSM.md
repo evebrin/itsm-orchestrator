@@ -17,7 +17,7 @@ Every statement about a repository cites the file it came from. Every ServiceNow
 
 | # | Decision | Reason | ADR |
 |---|---|---|---|
-| D1 | One shared PDI: **dev181865** (the change repository's) | Its seed is the heaviest to rebuild (about 1,500 changes through Import Sets, schedules, approval group memberships) and its discovery notes are the most complete; pm-agent's 200 incidents reseed in minutes | [0001](adr/0001-shared-pdi.md) |
+| D1 | One shared PDI: **dev406825** (corrected 2026-11-19; the incident repository's first PDI) | **To confirm**: chosen first for the change repository's seed, the heaviest to rebuild (about 1,500 changes through Import Sets, schedules, approval group memberships); whether that Larkspur world is on dev406825 or must be loaded there is open question 1. pm-agent's 200 incidents reseed in minutes | [0001](adr/0001-shared-pdi.md) |
 | D2 | One synthetic world: **Larkspur Outfitters** CMDB from the change repository; planted incident patterns are re-targeted onto Larkspur CIs; the incident repository's CSV corpus stays for classifier evaluation only | The change graph only accepts CIs that exist in its `fixtures.json` and catalog services (`intake.py` `_resolve_cis`, `_services`), so the change world must be the shared one | [0002](adr/0002-synthetic-world.md) |
 | D3 | Dependencies as **git submodules** pinned to a commit, not `pip install git+…` | Only the change repository is a Python package; and `cm_agents.settings.repo_root()` finds `.env`, `config/policy.yaml`, `data/synthetic/fixtures.json` and `var/` by walking up to a `pyproject.toml`, which an installed copy in site-packages does not have (it falls back to the current directory) | [0003](adr/0003-submodules.md) |
 | D4 | Orchestration: one **LangGraph** process with a *tick graph* and one *case graph* per problem, SQLite checkpointer, deterministic conditional edges, no LLM supervisor; the change graph runs unchanged as its own checkpointed thread driven from a case-graph node | Reuses `cm_agents` as is (its `runner` already resumes threads with `Command(resume=…)`), and keeps pm-agent's `run(ctx)` agents as plain node functions | [0004](adr/0004-langgraph-composition.md) |
@@ -26,7 +26,7 @@ Every statement about a repository cites the file it came from. Every ServiceNow
 | D7 | A held case is a **terminal state of the run**; its reason is written to the change and the problem; a person handles it outside the run | No path waits for a human | [0006](adr/0006-held-cases.md) |
 | D8 | The incident workflow is **built in the orchestrator**, using the incident repository's registry, tool functions, routing, SLA and classifier as a library with an injected ServiceNow client | Its own client and before-image write are `TODO(student)` stubs (`client.py` `list_all`, `update_with_before_image`; `writes.py` `rollback`); the tool functions take the client as a parameter, so no student exercise has to be completed by PR | [0007](adr/0007-incident-workflow-location.md) |
 | D9 | One LLM provider: **xAI Grok**, one key, one model setting | The change repository's structured output depends on `langchain-xai` (`cm_agents/llm.py`); pm-agent's `llm.py` already supports `xai`; the incident runtime path needs no LLM | [0008](adr/0008-llm-provider.md) |
-| D10 | One instance change is allowed: pm-agent's tagged Scripted REST API, **only if** probe P3 shows `problem.state` is read-only on dev181865 | The only way found to move problem state; it is tagged, minimal and removed by reset | [0009](adr/0009-instance-change-rule.md) |
+| D10 | One instance change is allowed: pm-agent's tagged Scripted REST API, **only if** probe P3 shows `problem.state` is read-only on dev406825 | The only way found to move problem state; it is tagged, minimal and removed by reset | [0009](adr/0009-instance-change-rule.md) |
 | D11 | One case ID `SYN-E2E-<run_id>-P<nn>` | The change graph requires thread ids that start `SYN-` (`runner._require_thread`) and uses the thread id as `correlation_id`; `SYN-E2E-` is outside the change repository's metric prefixes | [0010](adr/0010-correlation-id.md) |
 | D12 | Triggering by a **scheduled tick** on a simulated clock, not webhooks | No instance change (no outbound REST, no business rule); deterministic and replayable | [0004](adr/0004-langgraph-composition.md) |
 
@@ -80,11 +80,11 @@ Every statement about a repository cites the file it came from. Every ServiceNow
 | Request keys read | `requester`, `summary`, `description` (required by `runner.load_request`); `cis` (names); `justification`, `implementation_plan`, `backout_plan`, `test_plan`; `proposed_start`/`proposed_end` or `proposed_window: next_maintenance`; `deployment_method` (`automated`/`manual`); `deployment_strategy`; `template`; `requested_type`; `incident`; `security_flag`; `release`; `simulated_now` (grep of `cm_agents/`) |
 | State | `ChangeState` TypedDict (`graphs/state.py`); SQLite at `var/checkpoints.sqlite`; thread id = `correlation_id` of the change |
 | Interrupts | `requester_info` (gaps), `authorization` (once per approval step), `go_no_go` (resume `{decision: go/no-go, by, reason}`), `rollback_failed` (`graphs/change_graph.py`) |
-| ServiceNow (verified on dev181865, `docs/DISCOVERY.md`) | Normal change: assignment-group approval at Assess, then CAB Approval at Authorize, **for every risk tier** (item 5); approving one requested approver moves the state on its own; `incident.u_caused_by` (item 9); no `rm_release` (item 10); date-times UTC with `display_value=false` (item 12) |
+| ServiceNow (verified on dev181865, `docs/DISCOVERY.md`; **to re-verify** on dev406825) | Normal change: assignment-group approval at Assess, then CAB Approval at Authorize, **for every risk tier** (item 5); approving one requested approver moves the state on its own; `incident.u_caused_by` (item 9); no `rm_release` (item 10); date-times UTC with `display_value=false` (item 12) |
 | Identities | `syn.svc.change_agents`, Web service access only: `sn_change_write`, `audit_viewer`, `sn_incident_write`; not `itil`, not `admin` (`docs/ASSUMPTIONS.md`); admin for seed, teardown and the test approver (`tests/helpers/approve_as_human.py`) |
 | Tagging | Seed `SYN-CHG-`, `SYN-OPEN-`, `SYN-REL-`, `SYN-INC-`; scenario threads `SYN-<12 hex>`; `remove_scenario_records` deletes every `SYN-` change and incident that is not a seed prefix (`docs/ASSUMPTIONS.md`) |
 | Tests | Offline: `uv run pytest -m "not live"` (170 passed in the Phase 6 report); live: `uv run pytest -m live` and `cm-agents scenario run all` (S01–S10, including `S08-injection`) (`docs/RUNBOOK.md`) |
-| Phase | **Complete**: Phase 6 (hardening and handover) passed two full teardown → seed → scenario cycles (seeds 7 and 42, anchor `2026-10-27`), all of S01–S10 passed, README and `docs/RUNBOOK.md` written (`docs/phase-reports/phase-6.md`). The instance was left on seed 42 with no teardown, so the Larkspur world is loaded on dev181865 |
+| Phase | **Complete**: Phase 6 (hardening and handover) passed two full teardown → seed → scenario cycles (seeds 7 and 42, anchor `2026-10-27`), all of S01–S10 passed, README and `docs/RUNBOOK.md` written (`docs/phase-reports/phase-6.md`). The instance was left on seed 42 with no teardown, so the Larkspur world is loaded on dev181865 (not the shared instance, dev406825: open question 1) |
 
 ### 1.4 Gap table
 
@@ -116,11 +116,11 @@ Every statement about a repository cites the file it came from. Every ServiceNow
 | 9 | Batch versus event | A scheduled tick on a simulated clock: each tick polls new incidents and reruns detection over the trailing 14 days (§7.3) |
 | 10 | Three LLM setups | xAI Grok, one key (D9) |
 | 11 | Instance-change rule | One allowed instance change, conditional on probe P3 (D10) |
-| 12 | Different PDIs | Every pm-agent and incident-repository finding is re-verified on dev181865 (§11) |
+| 12 | Different PDIs | Every finding made on another PDI (pm-agent's, the change repository's dev181865) is re-verified on dev406825 (§11) |
 | 13 | Two owners | Integration in the orchestrator; changes as PRs only (`OWNER_PRS.md`) |
 | 14 *(new)* | Incident write functions are stubs | Inject the orchestrator's client, which implements `get`, `list` and `update_with_before_image` (D8) |
 | 15 *(new)* | `repo_root()` falls back to the current directory when `cm_agents` is installed | Submodules (D3); PR C1 adds an override |
-| 16 *(new)* | Change authority does not depend on risk tier on dev181865 | Tier caps are the orchestrator's policy on top of the platform's two steps (§5.1) |
+| 16 *(new)* | Change authority does not depend on risk tier (dev181865; to re-verify on dev406825) | Tier caps are the orchestrator's policy on top of the platform's two steps (§5.1) |
 | 17 *(new)* | pm-agent prompts do not wrap record text | PR P5 (§9) |
 | 18 *(new)* | `evebrin/pm-agent` is public on GitHub | Owner decision; it holds no secrets (`.gitignore`, secret scans) |
 
@@ -283,7 +283,7 @@ window: {start, end}                     # UTC
 detection: {count, similarity, confidence, score}
 ```
 - Trigger: pm-agent's detection rule (5+ in 14 days on one CI or service, similarity ≥ 0.10) **and** confidence ≥ Medium (policy `problem.min_confidence`).
-- Links: `incident.parent` = problem (verified on the pm-agent PDI; **to verify** on dev181865, P1).
+- Links: `incident.parent` = problem (verified on the pm-agent PDI; **to verify** on dev406825, P1).
 - Idempotency key: `sha256(ci_sys_id|subcategory)`; if an open problem in the run has that key in its work note `[case …] signature …`, new incidents are linked to it instead of opening a second problem.
 
 ### 4.2 Problem → Incident (known error used)
@@ -388,7 +388,7 @@ change is not approved: its approval row stays `requested`, the hold reason is w
 |---|---|---|---|
 | `syn.svc.e2e_incident` | classify, assign, resolve incidents | `itil` | P6: write `incident.assignment_group` OK; write `change_request` refused |
 | `syn.svc.e2e_problem` | detect, RCA, known error, closure | `itil`, `problem_coordinator`, KB contributor via Known Error KB `can_contribute` (verified on the pm-agent PDI) | P7: problem state move OK; `POST /api/sn_chg_rest/change/normal` → 403 |
-| `syn.svc.change_agents` (existing) | raise, assess, schedule, deploy | `sn_change_write`, `audit_viewer`, `sn_incident_write` (verified on dev181865) | P8: write `problem.cause_notes` refused |
+| `syn.svc.change_agents` (existing) | raise, assess, schedule, deploy | `sn_change_write`, `audit_viewer`, `sn_incident_write` (verified on dev181865; **to re-verify** on dev406825) | P8: write `problem.cause_notes` refused |
 | `syn.svc.e2e_approver` | approve changes, both steps | `approver_user` (**to verify**), membership in each SYN assignment group and in CAB Approval; **no** write role on `change_request` | P9 (below) |
 | `admin` | setup, seed, teardown, metadata reads only | — | P10: runtime audit log contains no admin request |
 
@@ -638,30 +638,30 @@ Check: `streamlit run itsm/ui/app.py` in dry-run mode shows a case list; `grep -
 
 ## 11. ServiceNow data model
 
-PDI: dev181865. "Verified" names the PDI and source; anything verified only on the pm-agent PDI is **to verify**.
+PDI: dev406825. "Verified" names the PDI and source. Anything verified only on another PDI (dev181865, the change repository's; the pm-agent PDI) is **to re-verify** on dev406825 by the phase 1 probes.
 
 | Object | Status | Source / probe | Fallback |
 |---|---|---|---|
-| `incident` core fields, `close_code`, `close_notes` | verified dev181865 | change repo loads incidents (`data/load.py`) | — |
+| `incident` core fields, `close_code`, `close_notes` | verified dev181865; **re-verify** dev406825 | change repo loads incidents (`data/load.py`) | — |
 | `incident.parent` → problem | **to verify** (verified the pm-agent PDI) | P1: set `parent` to a problem as the problem identity, read back | none found; stop and ask |
-| `incident.u_caused_by` | verified dev181865 | DISCOVERY item 9 | — |
+| `incident.u_caused_by` | verified dev181865; **re-verify** dev406825 | DISCOVERY item 9 | — |
 | `incident.problem_id` | absent on both | pm-agent verify; DISCOVERY item 9 | use `parent` |
 | `problem.state` read-only to the Table API | **to verify** | P3: PATCH `state` as problem identity, read back | if writable, the state API is not installed (D10) |
 | Problem state model conditions (assigned_to; cause + fix notes) | **to verify** | P4: pm-agent `state_api.py --test` | — |
 | `problem.rfc`, `cause_notes`, `fix_notes`, `workaround`, `known_error`, `primary_known_error_article`, `resolution_code=fix_applied` | **to verify** | P2: pm-agent `verify_instance.py` against dev181865 | — |
 | Known Error KB, `kb_template_known_error_article`, instant publish | **to verify** | P5: the KB and template exist (read-only); publishing itself is exercised in the phase 3/4 thin slice | another KB the problem identity can contribute to |
 | `kb_knowledge` retire | **to verify** | P14: `retired` workflow state and a retire function in `KnowledgeUIAction` (read-only); retiring is exercised in phase 4 | leave published, note "retired by closure" |
-| `change_request` normal model, states −5…3, close codes | verified dev181865 | DISCOVERY items 3–4 | — |
-| Approvals: assignment group then CAB Approval, every tier | verified dev181865 | DISCOVERY item 5 | — |
+| `change_request` normal model, states −5…3, close codes | verified dev181865; **re-verify** dev406825 | DISCOVERY items 3–4 | — |
+| Approvals: assignment group then CAB Approval, every tier | verified dev181865; **re-verify** dev406825 | DISCOVERY item 5 | — |
 | Approver identity can approve its own row | **to verify** | P9 | §5.2 fallback |
-| `conflict`, `task_ci`, `task_cmdb_ci_service`, `sn_chg_rest` CI association | verified dev181865 | DISCOVERY items 7, 9; ASSUMPTIONS | — |
-| `cmdb_ci` Larkspur CIs, `environment` | verified dev181865 | ASSUMPTIONS (Phase 5 population) | — |
+| `conflict`, `task_ci`, `task_cmdb_ci_service`, `sn_chg_rest` CI association | verified dev181865; **re-verify** dev406825 | DISCOVERY items 7, 9; ASSUMPTIONS | — |
+| `cmdb_ci` Larkspur CIs, `environment` | verified dev181865; **re-verify** dev406825 | ASSUMPTIONS (Phase 5 population) | — |
 | CI attributes used as RCA evidence (firmware, OS) | **to verify** | P11: read Larkspur CI classes' fields | plant evidence in incident work notes only |
 | Incident close code for "resolved by problem / workaround" | **to verify** | P12: `sys_choice` for `incident.close_code` | an existing code plus close notes |
 | Roles: `itil`, `problem_coordinator`, `approver_user` | **to verify** | P6–P9 | smallest role that unblocks, recorded |
 | Run tag prefixes do not collide | **to verify** | P15: counts of `SYN-E2E-`, `SYN-CHG-`… | — |
 | A **resolved** incident can be linked to a problem by the problem identity | **to verify** (pm-agent needed admin for closed incidents) | P13: link a Resolved probe incident as the problem identity | link before resolution, or keep the admin exception, recorded |
-| Basic auth restriction, WSAO users | verified dev181865 | DISCOVERY item 13 | — |
+| Basic auth restriction, WSAO users | verified dev181865; **re-verify** dev406825 | DISCOVERY item 13 | — |
 
 **Instance-change rule (conflict 11):** no instance change except one, if P3 shows it is needed: pm-agent's
 tagged `[PMSYNTH] Problem State` Scripted REST API (two operations, guarded to tagged problems and
@@ -717,7 +717,7 @@ Each phase ends with its gate; every phase keeps all three suites green: `pytest
 
 | Phase | Work | Gate (command → expected) |
 |---|---|---|
-| 1 Discovery and contracts | Submodules; probes P1–P15 on dev181865 (read-only or `SYN-PROBE`, cleaned up); owners agree contracts and the case id | `itsm probe --all` → every probe `PASS` or a recorded fallback; residue query → 0 `SYN-PROBE` rows |
+| 1 Discovery and contracts | Submodules; probes P1–P15 on dev406825 (read-only or `SYN-PROBE`, cleaned up); owners agree contracts and the case id | `itsm probe --all` → every probe `PASS` or a recorded fallback; residue query → 0 `SYN-PROBE` rows |
 | 2 Platform and data | Settings, client, clock, audit, untrusted, policy; `itsm seed`/`teardown`; owner PRs opened | `pytest tests/unit` green; `itsm seed --check` → counts match; teardown → 0 rows |
 | 3 Thin slice, dry run | One planted case end to end with `--dry-run` (no writes) | `itsm run --dry-run --case planted-a` → planned writes listed for every stage; 0 writes in the audit |
 | 4 Main path live | Approver agent, fail closed, closure | E2E-1, E2E-2, E2E-3 pass |
@@ -735,8 +735,10 @@ the shared PDI.
 | Risk (by impact) | Mitigation |
 |---|---|
 | The approver identity cannot approve its own row without an ACL change (P9) | Probe in phase 1 before any build; fallback is the smallest role; ACLs are never edited |
-| dev181865 belongs to another person and hibernates | Owner agreement (open question 1); every client detects hibernation |
-| `problem.state` and KB behaviour differ on dev181865 | P2–P5 in phase 1 |
+| dev406825 belongs to another person and hibernates | Owner agreement (open question 1); every client detects hibernation |
+| `problem.state` and KB behaviour differ on dev406825 | P2–P5 in phase 1 |
+| The change repository's Larkspur world is not on dev406825 | Open question 1; if it must be loaded, the change repository's own seed (its RUNBOOK) runs first and phase 1 waits for it |
+| dev406825 refuses basic auth for interactive users, `admin` included (incident repository ADR 0002) | Admin allowance (`snc_basic_auth_api_access`) or a web-service-only account for the probes; agreed with the owner |
 | R1 holds planted problems too (false holds) | Replay the reference run (phase 1); tune keyword groups only with before/after numbers |
 | Owner PRs are not accepted in time | Every PR has a temporary adapter workaround named in `OWNER_PRS.md`; the design never patches vendor code |
 | LLM cost or outage | Rule engines decide; LLM only writes rationale; caps per run |
@@ -745,7 +747,7 @@ the shared PDI.
 
 **Questions only the humans can answer**
 
-1. cocheuno: may the combined system use dev181865, add four synthetic users and group memberships, and (conditionally) install the one Scripted REST API?
+1. cocheuno: may the combined system use dev406825, add four synthetic users and group memberships, and (conditionally) install the one Scripted REST API? Is the change repository's Larkspur world on dev406825, or should it be loaded there?
 2. cocheuno: is agent approval through `syn.svc.e2e_approver` acceptable as a deliberate reversal of "agents do not write approval rows"?
 3. Both owners: who reviews and merges the PRs in `OWNER_PRS.md`, and by when?
 4. Is the case id format `SYN-E2E-<run_id>-P<nn>` acceptable to the change repository's metrics and cleanup rules?
