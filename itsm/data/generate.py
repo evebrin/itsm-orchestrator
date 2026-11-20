@@ -47,9 +47,10 @@ PATTERNS = {
           "group": "SYN Payments DevOps", "category": "network", "impact": "2", "urgency": "1",
           "short": ["Payment API calls failing TLS handshake", "Card payments rejected: certificate not trusted",
                     "Payments gateway returning SSL errors", "Checkout payment step fails after weekend"],
-          "notes": ["syn-pay-lb-01 still presents the old certificate after the Sunday 23:00 CERT-RENEW-WEEKLY job.",
+          "notes": ["syn-pay-lb-01 still presents the old certificate after the Sunday 23:00 CERT-RENEW-WEEKLY job; "
+                    "the proxy was not reloaded.",
                     "Reloaded the TLS proxy on syn-pay-lb-01; handshakes succeed again.",
-                    "Seen again this Monday; the renewal log shows success but the proxy was not reloaded.",
+                    "Seen again this Monday; the certificate renewal log shows success but the proxy was not reloaded.",
                     "Workaround: reload the TLS proxy on syn-pay-lb-01."],
           "workaround": "Reload the TLS proxy on syn-pay-lb-01 after the Sunday renewal job."},
     "c": {"mechanism": "firmware_defect", "ci": "syn-net-sw-03", "service": "",
@@ -58,8 +59,8 @@ PATTERNS = {
                     "Uplink flaps, connections reset", "Intermittent packet loss to the warehouse VLAN"],
           "notes": ["syn-net-sw-03 runs firmware 9.3.2; uplink port reset after about 60 minutes.",
                     "Moved the uplink to syn-net-sw-04 temporarily; no resets since.",
-                    "syn-net-sw-04 and syn-net-sw-05 run firmware 9.4.1 and are not affected.",
-                    "Vendor advisory: a link keepalive bug in 9.3.x, fixed in 9.4.1."],
+                    "syn-net-sw-04 and syn-net-sw-05 run firmware 9.4.1, where the keepalive defect is fixed, and are not affected.",
+                    "Vendor advisory: a link keepalive bug in firmware 9.3.x, fixed in firmware 9.4.1."],
           "workaround": "Move affected uplinks to syn-net-sw-04 until the firmware is upgraded."},
     "d": {"mechanism": "monthend_batch_lock", "ci": "syn-hr-payroll", "service": "SYN HR Portal",
           "group": "SYN Platform Ops", "category": "software", "impact": "1", "urgency": "2",
@@ -67,35 +68,46 @@ PATTERNS = {
                     "HR portal payroll page freezing"],
           "notes": ["HR-PAYROLL-MONTHEND batch started at 17:00 and holds locks on the payroll database.",
                     "Application recovered once the month-end batch finished.",
-                    "Same timeouts as last month-end, during the batch window.",
+                    "Same lock timeouts as last month-end, during the batch window.",
                     "Users can retry after the month-end batch completes."],
           "workaround": "Wait for the month-end batch to finish, then retry."},
 }
+# Written in the change repository's own plan format (cm_agents/data/generate.py `_plans`), so its plan checklist
+# (risk agent `judge_plans`: ordered backout, trigger and duration, test criteria, ordered steps with an owner) passes.
+# {ci} and {service} are filled by itsm.agents.rfc_builder.
 CATALOG = {
     "a": {"id": "FIX-LOG-ROTATION", "title": "Configure database log rotation and a disk alert",
-          "implementation_plan": "Deployment method: automated. Enable log rotation with 7-day retention for "
-                                 "/data/db_log on syn-ful-db-prd-01 and add a disk alert at 80%.",
-          "backout_plan": "Trigger: query latency or error rate above the verification thresholds. "
-                          "Duration: 15 minutes. Disable the rotation job and restore the previous configuration.",
-          "test_plan": "Success criteria: /data below 70% for the verification window; no slow-query alerts."},
+          "deployment_method": "automated", "deployment_strategy": "big bang",
+          "implementation_plan": "Deployment method: AUTOMATED\n1. Owner: {group}. Enable log rotation with 7-day "
+                                 "retention for /data/db_log on {ci}.\n2. Add a disk usage alert at 80% for /data on {ci}.",
+          "backout_plan": "1. Disable the log rotation job on {ci}.\n2. Restore the previous logging configuration.\n"
+                          "Trigger: query latency or error rate above the verification thresholds. Backout duration: 15 minutes.",
+          "test_plan": "1. Check /data usage on {ci}.\n2. Run the slow-query report for {service}.\n"
+                       "Success criteria: /data below 70 percent for the verification window and no slow-query alerts."},
     "b": {"id": "FIX-CERT-RELOAD", "title": "Reload the TLS proxy after certificate renewal",
-          "implementation_plan": "Deployment method: automated. Add a proxy reload step and a served-certificate "
-                                 "check to CERT-RENEW-WEEKLY for syn-pay-lb-01.",
-          "backout_plan": "Trigger: TLS handshake failures above the verification thresholds. Duration: 10 minutes. "
-                          "Remove the reload step and reload the proxy manually.",
-          "test_plan": "Success criteria: the served certificate matches the renewed one; handshake errors 0."},
+          "deployment_method": "automated", "deployment_strategy": "big bang",
+          "implementation_plan": "Deployment method: AUTOMATED\n1. Owner: {group}. Add a proxy reload step to "
+                                 "CERT-RENEW-WEEKLY for {ci}.\n2. Add a check that the served certificate is the renewed one.",
+          "backout_plan": "1. Remove the reload step from CERT-RENEW-WEEKLY.\n2. Reload the proxy on {ci} manually.\n"
+                          "Trigger: TLS handshake failures above the verification thresholds. Backout duration: 10 minutes.",
+          "test_plan": "1. Run CERT-RENEW-WEEKLY in the test window.\n2. Call the {service} API over TLS.\n"
+                       "Success criteria: the served certificate matches the renewed one and handshake errors are 0."},
     "c": {"id": "FIX-SWITCH-FIRMWARE", "title": "Upgrade switch firmware to 9.4.1",
-          "implementation_plan": "Deployment method: manual. Upgrade syn-net-sw-03 from firmware 9.3.2 to 9.4.1 "
-                                 "in the maintenance window and move the uplinks back.",
-          "backout_plan": "Trigger: uplink resets or packet loss after the upgrade. Duration: 30 minutes. "
-                          "Boot the previous firmware image.",
-          "test_plan": "Success criteria: no uplink resets for the verification window; packet loss below 0.1%."},
+          "deployment_method": "manual", "deployment_strategy": "big bang",
+          "implementation_plan": "Deployment method: MANUAL\n1. Owner: {group}. Upgrade {ci} from firmware 9.3.2 to "
+                                 "9.4.1 in the maintenance window.\n2. Move the uplinks back from syn-net-sw-04 to {ci}.",
+          "backout_plan": "1. Boot {ci} from the previous firmware image.\n2. Move the uplinks to syn-net-sw-04 again.\n"
+                          "Trigger: uplink resets or packet loss after the upgrade. Backout duration: 30 minutes.",
+          "test_plan": "1. Watch uplink resets on {ci}.\n2. Measure packet loss to the warehouse VLAN.\n"
+                       "Success criteria: no uplink resets for the verification window and packet loss below 0.1 percent."},
     "d": {"id": "FIX-BATCH-RESCHEDULE", "title": "Move the month-end payroll batch after hours",
-          "implementation_plan": "Deployment method: automated. Reschedule HR-PAYROLL-MONTHEND to 22:00 local and "
-                                 "split it into smaller commits.",
-          "backout_plan": "Trigger: the batch does not finish before 06:00 local. Duration: 20 minutes. "
-                          "Restore the previous schedule.",
-          "test_plan": "Success criteria: no payroll timeouts during business hours on the next month-end."},
+          "deployment_method": "automated", "deployment_strategy": "big bang",
+          "implementation_plan": "Deployment method: AUTOMATED\n1. Owner: {group}. Reschedule HR-PAYROLL-MONTHEND to "
+                                 "22:00 local.\n2. Split the batch into commits of at most 5,000 rows.",
+          "backout_plan": "1. Restore the previous HR-PAYROLL-MONTHEND schedule.\n2. Run the batch as one job.\n"
+                          "Trigger: the batch does not finish before 06:00 local. Backout duration: 20 minutes.",
+          "test_plan": "1. Run the batch on test data after hours.\n2. Watch payroll response times on {ci}.\n"
+                       "Success criteria: no payroll timeouts during business hours on the next month-end."},
 }
 DECOY = {"ci": "syn-store-web", "service": "SYN Online Store", "group": "SYN Store DevOps", "items": [
     ("software", "Store page shows an old banner", "CDN cache; purged the cached object."),
@@ -213,5 +225,6 @@ def plan(seed: int = 42, anchor: datetime | None = None) -> dict:
         "noise": len([r for r in rows if r["cluster"] == "noise"]),
     }
     catalog = [{**CATALOG[k], "mechanism": PATTERNS[k]["mechanism"], "ci": PATTERNS[k]["ci"],
+                "service": PATTERNS[k]["service"], "group": PATTERNS[k]["group"],
                 "workaround": PATTERNS[k]["workaround"]} for k in PATTERNS]
     return {"seed": seed, "anchor": anchor.isoformat(), "incidents": rows, "catalog": catalog, "ground_truth": truth}

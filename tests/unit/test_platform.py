@@ -65,3 +65,20 @@ def test_refusals_are_returned_and_every_call_is_audited(tmp_path):
     status, _ = c.request("POST", "/api/sn_chg_rest/change/normal", purpose="must be refused", json={})
     assert status == 403
     assert c.audit.rows[-1]["identity"] == "t" and c.audit.rows[-1]["result"] == "403"
+
+
+def test_dry_run_reads_go_through_and_writes_are_only_planned(tmp_path):
+    from itsm.platform.audit import Audit
+    from itsm.platform.sn import SNClient
+    from tests.unit.fake_instance import FakeInstance
+
+    inst = FakeInstance({"incident": [{"sys_id": "i1", "number": "INC1"}]})
+    sn = SNClient(PDI, "u", "pw", identity="svc", audit=Audit(tmp_path / "a.jsonl"), session=inst, dry_run=True)
+    assert sn.list("incident", "", ["number"], purpose="read") == [{"number": "INC1"}]
+    status, row = sn.create("incident", {"short_description": "x"}, purpose="planned create")
+    assert status == 201 and row["sys_id"].startswith("dryrun-")
+    sn.update("incident", "i1", {"state": "6"}, purpose="planned update")
+    sn.delete("incident", "i1", purpose="planned delete")
+    assert [c[0] for c in inst.calls] == ["GET"]                     # nothing but the read reached the instance
+    assert [p["method"] for p in sn.planned] == ["POST", "PATCH", "DELETE"]
+    assert (tmp_path / "a.jsonl").read_text().count('"planned"') == 3

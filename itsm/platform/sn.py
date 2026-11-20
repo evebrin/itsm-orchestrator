@@ -5,7 +5,9 @@ One client per identity. Every request is audited with the identity and a purpos
 - a hibernating PDI answers with an HTML page: raised as Hibernating, never parsed as data;
 - a request that failed before any response is retried only for GET (a dropped write may have committed),
   the change repository's rule (cm_agents/servicenow/client.py);
-- 429/502/503/504 are retried with backoff, at most 3 attempts; other 4xx/5xx raise SNError with the status.
+- 429/502/503/504 are retried with backoff, at most 3 attempts; other 4xx/5xx raise SNError with the status;
+- dry run: reads go to the instance, every write is recorded in `planned` and the audit (result "planned") and
+  never sent; it answers with a placeholder sys_id so the caller can go on.
 """
 from __future__ import annotations
 
@@ -34,7 +36,7 @@ class Hibernating(SNError):
 class SNClient:
     def __init__(self, instance: str, user: str, password: str, *, identity: str, audit: Audit,
                  secrets: list[str] | None = None, session: requests.Session | None = None,
-                 timeout: float = 60, sleep=time.sleep) -> None:
+                 timeout: float = 60, sleep=time.sleep, dry_run: bool = False) -> None:
         if not PDI_URL.fullmatch(instance):
             raise SNError("refusing a host that is not a Personal Developer Instance")
         self.instance, self.identity, self.audit = instance, identity, audit
@@ -43,12 +45,18 @@ class SNClient:
         self.session.auth = (user, password)
         self.session.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
         self.timeout, self._sleep = timeout, sleep
+        self.dry_run, self.planned = dry_run, []
 
     # ---- low level ---------------------------------------------------------------------------
     def request(self, method: str, path: str, *, purpose: str, params: dict | None = None,
                 json: dict | None = None) -> tuple[int, Any]:
         """(status, parsed result). Raises SNError for errors other than 401/403/404, which are returned
         so a probe can assert a refusal."""
+        if self.dry_run and method != "GET":
+            self.planned.append({"identity": self.identity, "method": method, "path": path, "purpose": purpose,
+                                 "params": params, "json": json})
+            self._log(method, path, purpose, "planned")
+            return (201 if method == "POST" else 200), {"sys_id": f"dryrun-{len(self.planned):04d}", "number": "DRYRUN"}
         url = f"{self.instance}{path}"
         last = ""
         for attempt in range(MAX_ATTEMPTS):
@@ -89,9 +97,11 @@ class SNClient:
 
     # ---- table API -----------------------------------------------------------------------------
     def list(self, table: str, query: str = "", fields: list[str] | None = None, *, purpose: str,
-             limit: int = 200, display: bool = False) -> list[dict]:
-        params: dict[str, Any] = {"sysparm_limit": limit, "sysparm_query": query,
-                                  "sysparm_display_value": "true" if display else "false"}
+             limit: int = 200, display: bool = False, offset: int = 0) -> list[dict]:
+        """Reference fields come back as plain sys_ids (sysparm_exclude_reference_link), as pm-agent reads them."""
+        params: dict[str, Any] = {"sysparm_limit": limit, "sysparm_query": query, "sysparm_offset": offset,
+                                  "sysparm_display_value": "true" if display else "false",
+                                  "sysparm_exclude_reference_link": "true"}
         if fields:
             params["sysparm_fields"] = ",".join(fields)
         status, result = self.request("GET", f"/api/now/table/{table}", purpose=purpose, params=params)

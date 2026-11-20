@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import pytest
 
-from itsm.agents.rca_confirm import CATEGORIES
+from itsm.agents.rca_confirm import CATEGORIES, category
 from itsm.data.generate import plan
 
 
@@ -56,10 +56,12 @@ def test_ground_truth_partitions_the_incidents(p):
 
 def test_catalog_matches_r1_categories_and_a1_plan_checklist(p):
     assert {c["mechanism"] for c in p["catalog"]} == set(CATEGORIES)
-    for c in p["catalog"]:
-        assert c["implementation_plan"].startswith("Deployment method:")
-        assert re.search(r"Trigger:", c["backout_plan"]) and re.search(r"Duration: \d+ minutes", c["backout_plan"])
-        assert c["test_plan"].startswith("Success criteria:")
+    for c in p["catalog"]:  # the change repository's plan format (cm_agents/data/generate.py `_plans`)
+        assert re.match(r"Deployment method: (AUTOMATED|MANUAL)\n1\. Owner: \{group\}\. ", c["implementation_plan"])
+        assert re.search(r"^1\. .*\n2\. ", c["backout_plan"]) and re.search(r"Trigger: .+ Backout duration: \d+ minutes\.",
+                                                                              c["backout_plan"])
+        assert re.search(r"^1\. ", c["test_plan"]) and "Success criteria: " in c["test_plan"]
+        assert c["deployment_method"] in ("automated", "manual") and c["deployment_strategy"] == "big bang"
 
 
 def test_every_ci_is_a_larkspur_ci_and_no_ci_record_is_changed(p):
@@ -69,3 +71,11 @@ def test_every_ci_is_a_larkspur_ci_and_no_ci_record_is_changed(p):
     names = {c["name"] for c in generate(42, DEFAULT_ANCHOR)["cis"]}
     assert {r["cmdb_ci"] for r in p["incidents"] if r["cmdb_ci"]} <= names
     assert "firmware_version" not in str(p["catalog"])  # firmware evidence is in work notes, not CI fields
+
+
+def test_each_pattern_has_notes_that_state_its_cause_in_r1_terms():
+    # the rule engine quotes one note as the cause; R1 can only confirm it if that note names the mechanism
+    from itsm.data.generate import PATTERNS
+    for k, pat in PATTERNS.items():
+        named = [n for n in pat["notes"] if category(n.format(pct=95, gb=40)) == pat["mechanism"]]
+        assert len(named) >= 2, k

@@ -8,6 +8,7 @@
     python -m itsm seed --run-id 20261119-1530 --dry-run   # what would be loaded; sends no request
     python -m itsm seed --run-id 20261119-1530 [--check]   # load (admin), or check a loaded run
     python -m itsm teardown --run-id 20261119-1530         # delete the run's records and identities
+    python -m itsm run --run-id 20261119-2106 --case planted-a --dry-run   # phase 3 thin slice; writes nothing
 """
 from __future__ import annotations
 
@@ -115,6 +116,17 @@ def cmd_teardown(a: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_run(a: argparse.Namespace) -> int:
+    if not a.dry_run:
+        print("only --dry-run exists until phase 4")
+        return 2
+    from itsm.run import dry_run, print_report
+
+    out = dry_run(a.run_id, a.case)
+    print_report(out)
+    return 0 if not out.get("error") and out["writes_sent"] == 0 else 1
+
+
 def _admin():
     from itsm.platform import settings
     from itsm.platform.audit import Audit
@@ -142,8 +154,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--check", action="store_true", help="check a loaded run against its manifest")
     t = sub.add_parser("teardown", help="delete a run's records and identities (admin)")
     t.add_argument("--run-id", required=True)
+    r2 = sub.add_parser("run", help="drive one case through the case graph (phase 3: --dry-run only)")
+    r2.add_argument("--run-id", required=True)
+    r2.add_argument("--case", required=True, choices=["planted-a", "planted-b", "planted-c", "planted-d", "decoy"])
+    r2.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
-    return {"probe": cmd_probe, "replay-r1": cmd_replay, "seed": cmd_seed, "teardown": cmd_teardown}[a.cmd](a)
+    return {"probe": cmd_probe, "replay-r1": cmd_replay, "seed": cmd_seed, "teardown": cmd_teardown,
+            "run": cmd_run}[a.cmd](a)
 
 
 if __name__ == "__main__":
